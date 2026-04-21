@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: homefirst-recalls-automation
+    runtime: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: SLACK_TOKEN
+        sync: false
+      - key: SLACK_CHANNEL
+        value: C0AUBTULV8E
+      - key: WEBHOOK_SECRET
+        sync: false
+      - key: NODE_ENV
+        value: production
