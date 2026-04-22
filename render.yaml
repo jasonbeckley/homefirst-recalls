@@ -6,10 +6,10 @@ services:
     startCommand: node server.js
     envVars:
       - key: SLACK_TOKEN
-        sync: false
+        value: xoxb-9907482923348-10951643847783-39Gzl6BhqukZZrDUVayI6dHY
       - key: SLACK_CHANNEL
         value: C0AUBTULV8E
       - key: WEBHOOK_SECRET
-        sync: false
+        value: homefirst2026
       - key: NODE_ENV
         value: production
