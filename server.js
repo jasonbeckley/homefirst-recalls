@@ -8,7 +8,6 @@ const sharp = require("sharp");
 const { FaExclamationTriangle, FaTools, FaFire, FaBolt, FaDollarSign, FaClock, FaCalendarWeek } = require("react-icons/fa");
 const fs = require("fs");
 const path = require("path");
-const FormData = require("form-data");
 
 const app = express();
 app.use(express.json({ limit: "50mb" }));
@@ -179,16 +178,28 @@ async function buildSlide(jobs, outputPath) {
 }
 
 async function postFileToSlack(filePath, dateRange) {
-  const form=new FormData();
-  form.append("channels",SLACK_CHANNEL);
-  form.append("initial_comment","Recalls Report - "+dateRange+"\nAuto-generated from ServiceTitan.");
-  form.append("filename",path.basename(filePath));
-  form.append("file",fs.createReadStream(filePath));
-  const resp=await axios.post("https://slack.com/api/files.upload",form,{
-    headers:{...form.getHeaders(),Authorization:"Bearer "+SLACK_TOKEN},
+  const filename = path.basename(filePath);
+  const fileData = fs.readFileSync(filePath);
+  const urlResp = await axios.post("https://slack.com/api/files.getUploadURLExternal", {
+    filename: filename,
+    length: fileData.length
+  }, {
+    headers: { Authorization: "Bearer " + SLACK_TOKEN, "Content-Type": "application/json" }
   });
-  if(!resp.data.ok) throw new Error("Slack error: "+resp.data.error);
-  return resp.data;
+  if (!urlResp.data.ok) throw new Error("Slack getUploadURL error: " + urlResp.data.error);
+  const { upload_url, file_id } = urlResp.data;
+  await axios.post(upload_url, fileData, {
+    headers: { "Content-Type": "application/octet-stream" }
+  });
+  const completeResp = await axios.post("https://slack.com/api/files.completeUploadExternal", {
+    files: [{ id: file_id }],
+    channel_id: SLACK_CHANNEL,
+    initial_comment: "Recalls Report - " + dateRange + "\nAuto-generated from ServiceTitan."
+  }, {
+    headers: { Authorization: "Bearer " + SLACK_TOKEN, "Content-Type": "application/json" }
+  });
+  if (!completeResp.data.ok) throw new Error("Slack completeUpload error: " + completeResp.data.error);
+  return completeResp.data;
 }
 
 app.post("/webhook", async (req, res) => {
