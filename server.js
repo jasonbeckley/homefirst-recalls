@@ -12,7 +12,7 @@ const path = require("path");
 const FormData = require("form-data");
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
 
 const SLACK_TOKEN = process.env.SLACK_TOKEN;
 const SLACK_CHANNEL = process.env.SLACK_CHANNEL || "C0AUBTULV8E";
@@ -194,14 +194,16 @@ async function postPDFToSlack(pdfPath, dateRange) {
 }
 
 app.post("/webhook", async (req, res) => {
-  const {secret,attachment_url,message_id,gmail_token}=req.body;
+  const {secret,attachment_url,attachment_base64,message_id,gmail_token}=req.body;
   if(secret!==WEBHOOK_SECRET) return res.status(401).json({error:"Unauthorized"});
   console.log("Webhook received");
   res.json({status:"processing"});
   try {
     let xlsxBuffer;
     const token=gmail_token||GMAIL_TOKEN;
-    if(attachment_url){
+    if(attachment_base64){
+      xlsxBuffer=Buffer.from(attachment_base64,"base64");
+    } else if(attachment_url){
       const resp=await axios.get(attachment_url,{responseType:"arraybuffer",headers:token?{Authorization:"Bearer "+token}:{}});
       xlsxBuffer=Buffer.from(resp.data);
     } else if(message_id&&token){
@@ -212,7 +214,7 @@ app.post("/webhook", async (req, res) => {
       const attResp=await axios.get("https://gmail.googleapis.com/gmail/v1/users/me/messages/"+message_id+"/attachments/"+attId,{headers:{Authorization:"Bearer "+token}});
       xlsxBuffer=Buffer.from(attResp.data.data.replace(/-/g,"+").replace(/_/g,"/"),"base64");
     } else {
-      throw new Error("No attachment_url or message_id provided");
+      throw new Error("No attachment_url, attachment_base64, or message_id provided");
     }
     const jobs=parseXLSX(xlsxBuffer);
     console.log("Parsed "+jobs.length+" jobs");
@@ -227,7 +229,7 @@ app.post("/webhook", async (req, res) => {
     fs.unlinkSync(pdfPath);
   } catch(err){
     console.error("Error:",err.message);
-    await axios.post("https://slack.com/api/chat.postMessage",{channel:SLACK_CHANNEL,text:"⚠️ Recalls automation failed: "+err.message},{headers:{Authorization:"Bearer "+SLACK_TOKEN}}).catch(()=>{});
+    await axios.post("https://slack.com/api/chat.postMessage",{channel:SLACK_CHANNEL,text:"Recalls automation failed: "+err.message},{headers:{Authorization:"Bearer "+SLACK_TOKEN}}).catch(()=>{});
   }
 });
 
