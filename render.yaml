@@ -2,7 +2,7 @@ services:
   - type: web
     name: homefirst-recalls-automation
     runtime: node
-    buildCommand: npm install
+    buildCommand: apt-get update && apt-get install -y libreoffice && npm install
     startCommand: node server.js
     envVars:
       - key: SLACK_TOKEN
