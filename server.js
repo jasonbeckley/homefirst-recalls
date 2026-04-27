@@ -6,7 +6,6 @@ const React = require("react");
 const ReactDOMServer = require("react-dom/server");
 const sharp = require("sharp");
 const { FaExclamationTriangle, FaTools, FaFire, FaBolt, FaDollarSign, FaClock, FaCalendarWeek } = require("react-icons/fa");
-const { execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const FormData = require("form-data");
@@ -17,7 +16,6 @@ app.use(express.json({ limit: "50mb" }));
 const SLACK_TOKEN = process.env.SLACK_TOKEN;
 const SLACK_CHANNEL = process.env.SLACK_CHANNEL || "C0AUBTULV8E";
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || "homefirst2026";
-const GMAIL_TOKEN = process.env.GMAIL_TOKEN;
 
 const C = {
   navy:"0D1B3E", teal:"00A896", orange:"F97316", offWhite:"F4F6FA",
@@ -180,12 +178,12 @@ async function buildSlide(jobs, outputPath) {
   await pres.writeFile({fileName:outputPath});
 }
 
-async function postPDFToSlack(pdfPath, dateRange) {
+async function postFileToSlack(filePath, dateRange) {
   const form=new FormData();
   form.append("channels",SLACK_CHANNEL);
-  form.append("initial_comment","PDF Recalls Report - "+dateRange+"\nAuto-generated from ServiceTitan.");
-  form.append("filename",path.basename(pdfPath));
-  form.append("file",fs.createReadStream(pdfPath));
+  form.append("initial_comment","Recalls Report - "+dateRange+"\nAuto-generated from ServiceTitan.");
+  form.append("filename",path.basename(filePath));
+  form.append("file",fs.createReadStream(filePath));
   const resp=await axios.post("https://slack.com/api/files.upload",form,{
     headers:{...form.getHeaders(),Authorization:"Bearer "+SLACK_TOKEN},
   });
@@ -200,7 +198,7 @@ app.post("/webhook", async (req, res) => {
   res.json({status:"processing"});
   try {
     let xlsxBuffer;
-    const token=gmail_token||GMAIL_TOKEN;
+    const token=gmail_token||process.env.GMAIL_TOKEN;
     if(attachment_base64){
       xlsxBuffer=Buffer.from(attachment_base64,"base64");
     } else if(attachment_url){
@@ -214,19 +212,16 @@ app.post("/webhook", async (req, res) => {
       const attResp=await axios.get("https://gmail.googleapis.com/gmail/v1/users/me/messages/"+message_id+"/attachments/"+attId,{headers:{Authorization:"Bearer "+token}});
       xlsxBuffer=Buffer.from(attResp.data.data.replace(/-/g,"+").replace(/_/g,"/"),"base64");
     } else {
-      throw new Error("No attachment_url, attachment_base64, or message_id provided");
+      throw new Error("No attachment provided");
     }
     const jobs=parseXLSX(xlsxBuffer);
     console.log("Parsed "+jobs.length+" jobs");
     const dateRange=formatDateRange(jobs);
     const pptxPath="/tmp/recalls_"+Date.now()+".pptx";
-    const pdfPath=pptxPath.replace(".pptx",".pdf");
     await buildSlide(jobs,pptxPath);
-    execSync('soffice --headless --convert-to pdf --outdir /tmp "'+pptxPath+'"',{timeout:60000});
-    await postPDFToSlack(pdfPath,dateRange);
+    await postFileToSlack(pptxPath,dateRange);
     console.log("Posted to Slack");
     fs.unlinkSync(pptxPath);
-    fs.unlinkSync(pdfPath);
   } catch(err){
     console.error("Error:",err.message);
     await axios.post("https://slack.com/api/chat.postMessage",{channel:SLACK_CHANNEL,text:"Recalls automation failed: "+err.message},{headers:{Authorization:"Bearer "+SLACK_TOKEN}}).catch(()=>{});
