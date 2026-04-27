@@ -182,7 +182,7 @@ async function postFileToSlack(filePath, dateRange) {
   const fileData = fs.readFileSync(filePath);
   const urlResp = await axios.post("https://slack.com/api/files.getUploadURLExternal", {
     filename: filename,
-    length: fileData.length
+    file_length: fileData.length
   }, {
     headers: { Authorization: "Bearer " + SLACK_TOKEN, "Content-Type": "application/json" }
   });
