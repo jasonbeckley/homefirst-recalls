@@ -60,8 +60,8 @@ function formatDateRange(jobs) {
   const year = last.getFullYear();
   const fMonth = months[first.getMonth()], lMonth = months[last.getMonth()];
   return fMonth === lMonth
-    ? dow[first.getDay()]+" "+ordinal(first.getDate())+" – "+dow[last.getDay()]+" "+ordinal(last.getDate())+" "+lMonth+" "+year
-    : dow[first.getDay()]+" "+ordinal(first.getDate())+" "+fMonth+" – "+dow[last.getDay()]+" "+ordinal(last.getDate())+" "+lMonth+" "+year;
+    ? dow[first.getDay()]+" "+ordinal(first.getDate())+" - "+dow[last.getDay()]+" "+ordinal(last.getDate())+" "+lMonth+" "+year
+    : dow[first.getDay()]+" "+ordinal(first.getDate())+" "+fMonth+" - "+dow[last.getDay()]+" "+ordinal(last.getDate())+" "+lMonth+" "+year;
 }
 function fmt(n) { return n>=1000 ? "$"+(n/1000).toFixed(1)+"K" : "$"+Math.round(n); }
 
@@ -70,7 +70,7 @@ function parseXLSX(buffer) {
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(ws, { defval:"" });
   return rows
-    .filter(r => r["Business Unit"] && /^d+$/.test(String(r["Job #"]||"").trim()))
+    .filter(r => r["Business Unit"] && /^\d+$/.test(String(r["Job #"]||"").trim()))
     .map(r => ({
       jobNum: String(r["Job #"]).trim(),
       bu: getBU(r["Business Unit"]),
@@ -104,7 +104,7 @@ async function buildSlide(jobs, outputPath) {
   s.addShape(pres.shapes.RECTANGLE,{x:0,y:0,w:10,h:0.75,fill:{color:C.navy},line:{type:"none"}});
   const warnIcon=await makeIcon(FaExclamationTriangle,"#F97316");
   s.addImage({data:warnIcon,x:0.3,y:0.14,w:0.42,h:0.42});
-  s.addText("RECALLS — "+dateRange.toUpperCase(),{x:0.85,y:0,w:8.0,h:0.75,fontSize:16,bold:true,color:C.white,fontFace:"Calibri",valign:"middle",margin:0});
+  s.addText("RECALLS - "+dateRange.toUpperCase(),{x:0.85,y:0,w:8.0,h:0.75,fontSize:16,bold:true,color:C.white,fontFace:"Calibri",valign:"middle",margin:0});
   s.addText("HomeFirst Services",{x:7.6,y:0,w:2.1,h:0.75,fontSize:11,color:"A0AEC0",fontFace:"Calibri",align:"right",valign:"middle",margin:0});
 
   const kpis=[
@@ -156,7 +156,7 @@ async function buildSlide(jobs, outputPath) {
   const rowH=0.41,rowY0=tY+0.42;
   top3.forEach((j,i)=>{
     const ry=rowY0+i*(rowH+0.04),col=divColors[j.bu]||C.slate;
-    const desc=j.summary.replace(/Possible recall:s*/i,"").substring(0,55);
+    const desc=j.summary.replace(/Possible recall:\s*/i,"").substring(0,55);
     s.addShape(pres.shapes.RECTANGLE,{x:tX+0.12,y:ry,w:tW-0.24,h:rowH,fill:{color:i%2===0?"F8FAFC":"FFFFFF"},line:{type:"none"}});
     s.addShape(pres.shapes.RECTANGLE,{x:tX+0.12,y:ry,w:0.05,h:rowH,fill:{color:col},line:{type:"none"}});
     s.addShape(pres.shapes.OVAL,{x:tX+0.22,y:ry+0.09,w:0.24,h:0.24,fill:{color:col},line:{type:"none"}});
@@ -170,7 +170,7 @@ async function buildSlide(jobs, outputPath) {
 
   const top1=top3[0];
   const flagText=top1&&th>0&&top1.hours/th>0.3
-    ? "Job #"+top1.jobNum+" ("+top1.bu+", "+top1.hours.toFixed(1)+" hrs, "+fmt(top1.cost)+") = "+Math.round(top1.hours/th*100)+"% of all recall hours this week — review with Scott."
+    ? "Job #"+top1.jobNum+" ("+top1.bu+", "+top1.hours.toFixed(1)+" hrs, "+fmt(top1.cost)+") = "+Math.round(top1.hours/th*100)+"% of all recall hours this week - review with Scott."
     : n+" recalls completed this week across Plumbing, HVAC and Electrical.";
   s.addShape(pres.shapes.RECTANGLE,{x:0.1,y:5.08,w:9.8,h:0.4,fill:{color:C.lightRed},line:{pt:1,color:"DC2626"},shadow:shadow()});
   const warnIco=await makeIcon(FaExclamationTriangle,"#DC2626");
@@ -183,8 +183,7 @@ async function buildSlide(jobs, outputPath) {
 async function postPDFToSlack(pdfPath, dateRange) {
   const form=new FormData();
   form.append("channels",SLACK_CHANNEL);
-  form.append("initial_comment","PDF Recalls Report — "+dateRange+"
-Auto-generated from ServiceTitan.");
+  form.append("initial_comment","PDF Recalls Report - "+dateRange+"\nAuto-generated from ServiceTitan.");
   form.append("filename",path.basename(pdfPath));
   form.append("file",fs.createReadStream(pdfPath));
   const resp=await axios.post("https://slack.com/api/files.upload",form,{
